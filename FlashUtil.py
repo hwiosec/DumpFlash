@@ -11,7 +11,7 @@ class FlashUtil:
 		self.UseSequentialMode=False
 		self.DumpProgress=True
 		self.DumpProgressInterval=1
-
+                self.Filename=filename
 		if filename:
 			self.io = FlashFile(filename, page_size, oob_size, page_per_block)
 		else:
@@ -27,7 +27,8 @@ class FlashUtil:
 	def CheckECC(self, start_page=0, end_page=-1):
 		block = 0
 		count=0
-		error_count=0		
+		error_count=0	
+                fd = open(self.Filename + "_ecc.bin", "w")
 		
 		if end_page==-1:
 			end_page=self.io.PageCount
@@ -35,7 +36,7 @@ class FlashUtil:
 		start_block=0		
 		end_block=end_page/self.io.PagePerBlock
 		if end_page%self.io.PagePerBlock>0:
-			end_block+=1
+	 		end_block+=1
 
 		ecc=ECC()	
 		start=time.time()
@@ -51,10 +52,10 @@ class FlashUtil:
 					else:
 						fmt_str='Checking ECC %d%% (Page: %3d/%3d Block: %3d/%3d)\n'
 					sys.stdout.write(fmt_str % (progress, page, end_page, block, end_block))
-		
-			#if self.CheckBadBlock(block)==self.BAD_BLOCK:
-			#	print 'Bad Block: %d' % block
-			#	print ''
+			if self.CheckBadBlock(block)==self.BAD_BLOCK:
+				print 'Bad Block: %d' % block
+				print ''
+                                break
 
 			data=self.io.ReadPage(page)
 
@@ -64,42 +65,22 @@ class FlashUtil:
 	
 			count+=1
 			body = data[0:self.io.PageSize]
-			oob_ecc0 = ord(data[self.io.PageSize])
-			oob_ecc1 = ord(data[self.io.PageSize+1])
-			oob_ecc2 = ord(data[self.io.PageSize+2])
+		        oob =  data[self.io.PageSize + 6 : self.io.PageSize +9] + data[self.io.PageSize + 6 + 16 : self.io.PageSize +9 + 16] + data[self.io.PageSize + 6 + 32 : self.io.PageSize +9 + 32] + data[self.io.PageSize + 6 + 48 : self.io.PageSize +9+ 48]
+                        if ecc.CheckHamming(body, oob) == -1:
+	               	      error_count+=1
+                              print "page %d error" % (count)
+                        fd.write(body);     
 		
-			if (oob_ecc0==0xff and oob_ecc1==0xff and oob_ecc2==0xff) or (oob_ecc0==0x00 and oob_ecc1==0x00 and oob_ecc2==0x00):
-				continue
-		
-			(ecc0, ecc1, ecc2) = ecc.CalcECC(body)
-		
-			ecc0_xor = ecc0 ^ oob_ecc0
-			ecc1_xor = ecc1 ^ oob_ecc1
-			ecc2_xor = ecc2 ^ oob_ecc2
-		
-			if ecc0_xor != 0 or ecc1_xor != 0 or ecc2_xor != 0:
-				error_count+=1
 				
-				page_in_block=page%self.io.PagePerBlock
-
-				offset=self.io.GetPageOffset(page)
-				print "ECC Error (Block: %3d Page: %3d Data Offset: 0x%x OOB Offset: 0x%x)" % (block, page, offset, offset+self.io.PageSize)
-				print "  OOB:  0x%.2x 0x%.2x 0x%.2x" % ( oob_ecc0, oob_ecc1, oob_ecc2)
-				print "  Calc: 0x%.2x 0x%.2x 0x%.2x" % ( ecc0, ecc1, ecc2)
-				print "  XOR:  0x%.2x 0x%.2x 0x%.2x" % ( ecc0 ^ oob_ecc0, ecc1 ^ oob_ecc1, ecc2 ^ oob_ecc2)
-				print ''
-	
+	        fd.close()
 		print "Checked %d ECC record and found %d errors" % (count,error_count)
 
 		
 	def CheckBadBlockPage(self,oob):
 		bad_block=False
 		
-		if oob[0:3] != '\xff\xff\xff':
+		if oob[0:2] != '\xff\xff':
 			bad_block=True
-			if oob[0x8:] == '\x85\x19\x03\x20\x08\x00\x00\x00': #JFFS CleanMarker
-				bad_block=False
-
 		return bad_block
 
 	CLEAN_BLOCK=0
@@ -110,7 +91,7 @@ class FlashUtil:
 		for page in range(0,2,1):
 			current_page=block * self.io.PagePerBlock + page
 			oob=self.io.ReadOOB(block * self.io.PagePerBlock + page)
-			bad_block_byte = oob[6:7]
+			bad_block_byte = oob[5]
 			if not bad_block_byte:
 				return self.ERROR
 

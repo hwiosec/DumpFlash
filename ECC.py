@@ -1,6 +1,6 @@
-
+import hamming
 class ECC:
-	parity = ( 
+	Parity = ( 
 		0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0,
 		1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
 		1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
@@ -219,5 +219,17 @@ class ECC:
 		code0 = ~code0
 		code1 = ~code1
 		code2 = ~code2
-	
 		return (code0,code1,code2)
+
+	def CalcECC3(self, body):
+               print(type(body))
+               ecc_code = 'abcd'
+               print(type(ecc_code))
+               hamming.hamming_ecc(body, ecc_code)
+               code0 =  ord(ecc_code[0])
+               code1 =  ord(ecc_code[1])
+               code2 =  ord(ecc_code[2])
+               return (code0, code1, code2) 
+        def CheckHamming(self, body, oob):
+               return hamming.hamming_ecc(body, oob)
+ 		
